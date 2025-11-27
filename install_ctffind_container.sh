@@ -42,19 +42,12 @@ make distclean || true
 
 echo "[4/6] Patching source files ..."
 
-# ---- Patch 1: src/core/matrix.cpp ----
+# ---- Patch 1: src/core/matrix.cpp (replace asm SINCOS with sinf/cosf) ----
 MATRIX_FILE="src/core/matrix.cpp"
 if [[ -f "$MATRIX_FILE" ]]; then
-    cat <<'PATCHEOF' >> "$MATRIX_FILE"
-
-// --- PATCH: override _AL_SINCOS / FLOATSINCOS for portability ---
-#undef _AL_SINCOS
-#undef FLOATSINCOS
-#define _AL_SINCOS(x, s, c)  do { (s) = sinf(x); (c) = cosf(x); } while(0)
-#define FLOATSINCOS(x, s, c)  _AL_SINCOS((x) * AL_PI / 128.0f, s, c)
-// --- END PATCH ---
-PATCHEOF
-    echo "  Patched $MATRIX_FILE"
+    sed -i 's|#define _AL_SINCOS(x, s, c)  __asm__ ("fsincos" : "=t" (c), "=u" (s) : "0" (x))|#define _AL_SINCOS(x, s, c)  do { (s) = sinf(x); (c) = cosf(x); } while(0)|' "$MATRIX_FILE"
+    sed -i 's|#define FLOATSINCOS(x, s, c)  _AL_SINCOS((x) * AL_PI / 128.0, s ,c)|#define FLOATSINCOS(x, s, c)  _AL_SINCOS((x) * AL_PI / 128.0f, s, c)|' "$MATRIX_FILE"
+    echo "  Patched $MATRIX_FILE (_AL_SINCOS/FLOATSINCOS)"
 else
     echo "  WARNING: $MATRIX_FILE not found; skipping that patch."
 fi
@@ -95,3 +88,5 @@ if ! command -v ctffind >/dev/null 2>&1; then
 else
     echo "ctffind is on PATH: $(command -v ctffind)"
 fi
+
+
